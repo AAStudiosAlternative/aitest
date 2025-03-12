@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
             res.status(200).json({ response: aiResponse });
         } catch (error) {
             console.error('Error:', error.message);
-            res.status(504).json({ error: 'Assistant is offline, try again soon!' }); // Custom 504 fallback
+            res.status(504).json({ error: 'Assistant is offline, try again soon!' });
         }
     } else {
         res.status(405).json({ error: 'Method Not Allowed' });
@@ -43,9 +43,8 @@ async function getAIResponse(playerMessage) {
 
     const assistantPrompt = `I'm your assistant. ${playerMessage}`;
     async function tryFetch() {
-        // Add 5-second timeout to fetch
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 seconds
 
         try {
             const response = await fetch(
@@ -65,7 +64,7 @@ async function getAIResponse(playerMessage) {
         } catch (error) {
             clearTimeout(timeoutId);
             if (error.name === 'AbortError') {
-                throw new Error('Request timed out after 5 seconds');
+                throw new Error('Request timed out after 8 seconds');
             }
             throw error;
         }
@@ -75,8 +74,8 @@ async function getAIResponse(playerMessage) {
     let response = await tryFetch();
     if (response.status === 503) {
         console.log('503 detected, retrying in 1 second...');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Shorter delay
-        response = await tryFetch(); // Retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        response = await tryFetch(); // Retry (total ~9s, under 10s)
     }
 
     if (!response.ok) {
