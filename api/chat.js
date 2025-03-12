@@ -1,39 +1,44 @@
-// Import necessary libraries
-const fetch = require('node-fetch'); // Make sure you have this installed if you're using external APIs
+const fetch = require('node-fetch');
 
 module.exports = async (req, res) => {
+    console.log('Request method:', req.method); // Log the HTTP method (GET or POST)
+    console.log('Request headers:', req.headers); // Log request headers
+    console.log('Request body:', req.body); // Log the body of the request
+
     try {
-        // Log the incoming request to see the body
-        console.log("Received request body:", req.body);
-
-        // Ensure that the body has the 'message' field
-        const { message } = req.body;
-
-        if (!message) {
-            console.error("No message provided in the request.");
-            return res.status(400).json({ error: "Message is required." });
+        // Ensure we are receiving a POST request
+        if (req.method !== 'POST') {
+            return res.status(405).json({ error: "Only POST requests are allowed" });
         }
 
-        // If you are using an AI API like OpenAI, add this here:
-        const aiResponse = await processMessage(message); // Example function for AI processing
+        const { message } = req.body;
+        if (!message) {
+            console.error("No message received in request.");
+            return res.status(400).json({ error: "Message is required" });
+        }
 
-        console.log("AI Response:", aiResponse); // Log the response from AI
-        
+        // Log the received message
+        console.log('Received message:', message);
+
+        // Simulate an AI response (Replace this with actual API integration)
+        const aiResponse = await processMessage(message);
+
+        // Log AI response
+        console.log('AI Response:', aiResponse);
+
         return res.status(200).json({ response: aiResponse });
-    } catch (error) {
-        // Log the error for debugging
-        console.error("Error processing request:", error);
 
-        return res.status(500).json({ error: 'Internal server error' });
+    } catch (error) {
+        console.error("Error processing the request:", error);
+        return res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 };
 
-// Example AI function to simulate processing (replace with actual AI API call)
+// Simulate AI response (replace with actual AI API integration)
 async function processMessage(message) {
-    // Simulate AI processing, replace this with real API logic (e.g., OpenAI API)
-    console.log("Processing message:", message);
-
-    // In a real scenario, you'd call the AI API here (e.g., OpenAI)
-    // For now, just echo the message back
-    return `AI says: ${message}`;
+    console.log('Processing message:', message);
+    
+    // If you have an AI service like OpenAI, replace this code with the actual API call
+    // For now, we're just simulating the response.
+    return `AI Response to: ${message}`;
 }
