@@ -38,24 +38,30 @@ module.exports = async (req, res) => {
 };
 
 async function getAIResponse(playerMessage) {
-    const HF_API_KEY = process.env.HF_API_KEY;
-    if (!HF_API_KEY) throw new Error('Hugging Face API key not configured');
+    const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+    if (!OPENROUTER_API_KEY) throw new Error('OpenRouter API key not configured');
 
     const assistantPrompt = `I'm your assistant. ${playerMessage}`;
     async function tryFetch() {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 seconds
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
         try {
             const response = await fetch(
-                'https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill',
+                'https://openrouter.ai/api/v1/chat/completions',
                 {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${HF_API_KEY}`,
+                        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
                     },
-                    body: JSON.stringify({ inputs: assistantPrompt }),
+                    body: JSON.stringify({
+                        model: 'google/gemma-2-9b-it:free',
+                        messages: [
+                            { role: 'user', content: assistantPrompt }
+                        ],
+                        max_tokens: 50,
+                    }),
                     signal: controller.signal,
                 }
             );
@@ -70,21 +76,20 @@ async function getAIResponse(playerMessage) {
         }
     }
 
-    // First attempt
     let response = await tryFetch();
     if (response.status === 503) {
         console.log('503 detected, retrying in 1 second...');
         await new Promise(resolve => setTimeout(resolve, 1000));
-        response = await tryFetch(); // Retry (total ~9s, under 10s)
+        response = await tryFetch();
     }
 
     if (!response.ok) {
-        throw new Error(`Hugging Face API error: ${response.status} - ${response.statusText}`);
+        throw new Error(`OpenRouter API error: ${response.status} - ${response.statusText}`);
     }
 
     const data = await response.json();
     console.log('AI Response:', data);
-    let reply = data[0].generated_text || 'I’m here to assist, but the system’s down!';
+    let reply = data.choices[0].message.content || 'I’m here to assist, but the system’s down!';
     if (reply.startsWith("I'm your assistant. ")) {
         reply = reply.slice(19);
     }
