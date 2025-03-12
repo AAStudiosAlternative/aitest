@@ -1,6 +1,6 @@
 const fetch = require('node-fetch');
 
-// Simple rate limiter (in-memory, per instance)
+// Simple rate limiter (20 requests/minute)
 const requests = [];
 const MAX_REQUESTS_PER_MINUTE = 20;
 const MINUTE_MS = 60 * 1000;
@@ -8,7 +8,7 @@ const MINUTE_MS = 60 * 1000;
 function cleanOldRequests() {
     const now = Date.now();
     while (requests.length > 0 && now - requests[0] > MINUTE_MS) {
-        requests.shift(); // Remove requests older than 1 minute
+        requests.shift();
     }
 }
 
@@ -18,7 +18,6 @@ module.exports = async (req, res) => {
             const { message } = req.body;
             if (!message) throw new Error('No message provided');
 
-            // Check rate limit
             cleanOldRequests();
             if (requests.length >= MAX_REQUESTS_PER_MINUTE) {
                 res.status(429).json({ error: 'Too many requests, wait a minute!' });
@@ -39,31 +38,26 @@ module.exports = async (req, res) => {
 };
 
 async function getAIResponse(playerMessage) {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) throw new Error('OpenAI API key not configured');
+    const HF_API_KEY = process.env.HF_API_KEY;
+    if (!HF_API_KEY) throw new Error('Hugging Face API key not configured');
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}',
-        },
-        body: JSON.stringify({
-            model: 'gpt-3.5-turbo',
-            messages: [
-                { role: 'system', content: 'You are a friendly elf NPC in a Roblox game.' },
-                { role: 'user', content: playerMessage },
-            ],
-            max_tokens: 50,
-            temperature: 0.7,
-        }),
-    });
+    const response = await fetch(
+        'https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill',
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${HF_API_KEY}`,
+            },
+            body: JSON.stringify({ inputs: playerMessage }),
+        }
+    );
 
     if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.status} - ${response.statusText}`);
+        throw new Error(`Hugging Face API error: ${response.status} - ${response.statusText}`);
     }
 
     const data = await response.json();
     console.log('AI Response:', data);
-    return data.choices[0].message.content || 'AI is not responding properly.';
+    return data[0].generated_text || 'The elf is at a loss for words!';
 }
