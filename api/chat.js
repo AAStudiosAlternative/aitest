@@ -1,9 +1,11 @@
 const fetch = require('node-fetch');
 
-// Simple rate limiter (20 requests/minute)
+// Rate limiter: 20/minute local, 1/second for Mistral
 const requests = [];
 const MAX_REQUESTS_PER_MINUTE = 20;
 const MINUTE_MS = 60 * 1000;
+const lastRequestTime = { time: 0 }; // Track last request for 1 RPS
+const SECOND_MS = 1000;
 
 function cleanOldRequests() {
     const now = Date.now();
@@ -23,7 +25,15 @@ module.exports = async (req, res) => {
                 res.status(429).json({ error: 'Too many requests, wait a minute!' });
                 return;
             }
-            requests.push(Date.now());
+
+            // Enforce 1 RPS
+            const now = Date.now();
+            if (now - lastRequestTime.time < SECOND_MS) {
+                res.status(429).json({ error: 'Slow down—only 1 message per second!' });
+                return;
+            }
+            lastRequestTime.time = now;
+            requests.push(now);
 
             const aiResponse = await getAIResponse(message);
             res.setHeader("Access-Control-Allow-Origin", "*");
@@ -38,71 +48,39 @@ module.exports = async (req, res) => {
 };
 
 async function getAIResponse(playerMessage) {
-    const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-    if (!OPENROUTER_API_KEY) throw new Error('OpenRouter API key not configured');
+    const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
+    if (!MISTRAL_API_KEY) throw new Error('Mistral API key not configured');
 
-    // Check for hashtags (censored message)
     if (/^#+$/.test(playerMessage) || /#/.test(playerMessage)) {
         return "Your message was moderated, please send a new one.";
     }
 
-    const assistantPrompt = `I'm your assistant. ${playerMessage}`;
-    async function tryFetch() {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-        try {
-            const response = await fetch(
-                'https://openrouter.ai/api/v1/chat/completions',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                    },
-                    body: JSON.stringify({
-                        model: 'google/gemma-2-9b-it:free',
-                        messages: [
-                            { role: 'user', content: assistantPrompt }
-                        ],
-                        max_tokens: 50,
-                    }),
-                    signal: controller.signal,
-                }
-            );
-            clearTimeout(timeoutId);
-            return response;
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                throw new Error('Request timed out after 8 seconds');
-            }
-            throw error;
+    const response = await fetch(
+        'https://api.mistral.ai/v1/chat/completions',
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: 'mistral-small-latest',
+                messages: [{ role: 'user', content: playerMessage }],
+                max_tokens: 50,
+            }),
         }
-    }
-
-    let response = await tryFetch();
-    if (response.status === 503) {
-        console.log('503 detected, retrying in 1 second...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        response = await tryFetch();
-    }
+    );
 
     if (!response.ok) {
-        throw new Error(`OpenRouter API error: ${response.status} - ${response.statusText}`);
+        if (response.status === 429) {
+            return "Too many requests—slow down and try again!";
+        }
+        throw new Error(`Mistral API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('Raw OpenRouter Response:', JSON.stringify(data));
-    let reply = data.choices[0].message.content || 'I’m here to assist, but the system’s down!';
-    console.log('Assistant Reply Before Cleanup:', reply);
-
-    // Clean up newlines only, preserve "n"s in words
+    let reply = data.choices[0].message.content || 'Something went wrong!';
     reply = reply.replace(/\n/g, ' ').trim();
-    if (reply.startsWith("I'm your assistant. ")) {
-        reply = reply.slice(19);
-    }
-    console.log('Assistant Reply After Cleanup:', reply);
-
+    console.log('Mistral Reply:', reply);
     return reply;
 }
