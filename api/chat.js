@@ -88,10 +88,10 @@ async function getAIResponse(playerMessage) {
     }
 
     const data = await response.json();
-    console.log('AI Response:', data);
+    console.log('Raw OpenRouter Response:', JSON.stringify(data)); // Log full response
     let reply = data.choices[0].message.content || 'I’m here to assist, but the system’s down!';
-    if (reply.startsWith("I'm your assistant. ")) {
-        reply = reply.slice(19);
-    }
-    return reply;
-}
+    console.log('Assistant Reply Before Cleanup:', reply); // Log raw reply
+
+    // Clean up newlines and excessive "n"s
+    reply = reply.replace(/\n/g, ' ').replace(/n+/g, ' ').trim();
+    if (reply.startsWith("I'm your assistant. "))
