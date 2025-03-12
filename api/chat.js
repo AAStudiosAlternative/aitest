@@ -41,6 +41,11 @@ async function getAIResponse(playerMessage) {
     const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
     if (!OPENROUTER_API_KEY) throw new Error('OpenRouter API key not configured');
 
+    // Check for hashtags (censored message)
+    if (/^#+$/.test(playerMessage) || /#/.test(playerMessage)) {
+        return "Your message was moderated, please send a new one.";
+    }
+
     const assistantPrompt = `I'm your assistant. ${playerMessage}`;
     async function tryFetch() {
         const controller = new AbortController();
@@ -92,8 +97,8 @@ async function getAIResponse(playerMessage) {
     let reply = data.choices[0].message.content || 'I’m here to assist, but the system’s down!';
     console.log('Assistant Reply Before Cleanup:', reply);
 
-    // Clean up newlines and "n"s
-    reply = reply.replace(/\n/g, ' ').replace(/n+/g, ' ').trim();
+    // Clean up newlines only, preserve "n"s in words
+    reply = reply.replace(/\n/g, ' ').trim();
     if (reply.startsWith("I'm your assistant. ")) {
         reply = reply.slice(19);
     }
