@@ -33,4 +33,6 @@ async function getAIResponse(playerMessage) {
     });
 
     const data = await response.json();
-    console.log('AI Respon
+    console.log('AI Response:', data); // Debug the response
+    return data.response || 'AI is not responding properly.';
+}
