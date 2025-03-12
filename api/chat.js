@@ -41,6 +41,8 @@ async function getAIResponse(playerMessage) {
     const HF_API_KEY = process.env.HF_API_KEY;
     if (!HF_API_KEY) throw new Error('Hugging Face API key not configured');
 
+    // Prepend assistant cue to steer BlenderBot
+    const assistantPrompt = `Assistant: ${playerMessage}`;
     const response = await fetch(
         'https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill',
         {
@@ -49,7 +51,7 @@ async function getAIResponse(playerMessage) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${HF_API_KEY}`,
             },
-            body: JSON.stringify({ inputs: playerMessage }),
+            body: JSON.stringify({ inputs: assistantPrompt }),
         }
     );
 
@@ -59,5 +61,12 @@ async function getAIResponse(playerMessage) {
 
     const data = await response.json();
     console.log('AI Response:', data);
-    return data[0].generated_text || 'The elf is at a loss for words!';
+    let reply = data[0].generated_text || 'I’m here to assist, but I’m stumped!';
+    
+    // Optional: Clean up the response to remove the prompt echo
+    if (reply.startsWith('Assistant: ')) {
+        reply = reply.slice(11); // Remove "Assistant: " from output
+    }
+    
+    return reply;
 }
