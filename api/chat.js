@@ -1,89 +1,71 @@
-const fetch = require('node-fetch');
+const fetch = require('node-fetch'); // Ensure node-fetch is installed (npm install node-fetch@2)
 
-// Rate limiting variables
-const requests = [];
-const MAX_REQUESTS_PER_MINUTE = 20;
-const MINUTE_MS = 60 * 1000;
-const lastRequestTime = { time: 0 };
-const SECOND_MS = 1000;
+// Environment variable for OpenRouter API key (set this in Vercel dashboard)
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-function cleanOldRequests() {
-    const now = Date.now();
-    while (requests.length > 0 && now - requests[0] > MINUTE_MS) {
-        requests.shift();
-    }
+if (!OPENROUTER_API_KEY) {
+  throw new Error("OPENROUTER_API_KEY environment variable is not set.");
 }
 
-// Export the handler function for Vercel
 module.exports = async (req, res) => {
-    if (req.method === 'POST') {
-        try {
-            const { message } = req.body;
-            if (!message) throw new Error('No message provided');
+  // Ensure the request is a POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+  }
 
-            cleanOldRequests();
-            if (requests.length >= MAX_REQUESTS_PER_MINUTE) {
-                res.status(429).json({ error: 'Too many requests, wait a minute!' });
-                return;
-            }
-            const now = Date.now();
-            if (now - lastRequestTime.time < SECOND_MS) {
-                res.status(429).json({ error: 'Slow down—only 1 message per second!' });
-                return;
-            }
-            lastRequestTime.time = now;
-            requests.push(now);
+  // Extract the player's message from the request body
+  const { message } = req.body;
 
-            const aiResponse = await getAIResponse(message);
-            res.setHeader("Access-Control-Allow-Origin", "*");
-            res.status(200).json({ response: aiResponse });
-        } catch (error) {
-            console.error('Error:', error.message);
-            res.status(504).json({ error: 'Assistant is offline, try again soon!' });
-        }
-    } else {
-        res.status(405).json({ error: 'Method Not Allowed' });
-    }
-};
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'Invalid or missing "message" in request body.' });
+  }
 
-async function getAIResponse(playerMessage) {
-    const MISTRAL_API_KEY = process.env.MISTRAL_API_KEY;
-    if (!MISTRAL_API_KEY) throw new Error('Mistral API key not configured');
+  try {
+    // Prepare the payload for OpenRouter
+    const payload = {
+      model: "qwen/qwen-2.5-7b-instruct",
+      messages: [
+        { role: "user", content: message }
+      ]
+    };
 
-    if (/^#+$/.test(playerMessage) || /#/.test(playerMessage)) {
-        return "Your message was moderated, please send a new one.";
-    }
+    // Make the request to OpenRouter
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
 
-    const systemPrompt = "You are a helpful NPC in a Roblox game. Respond directly and politely to the player's message without adding humor, jokes, or unrelated topics. Keep answers short and appropriate for a family-friendly game.";
-    const response = await fetch(
-        'https://api.mistral.ai/v1/chat/completions',
-        {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'mistral-large-2411',
-                messages: [
-                    { role: 'system', content: systemPrompt },
-                    { role: 'user', content: playerMessage }
-                ],
-                max_tokens: 50,
-            }),
-        }
-    );
-
+    // Check if the request was successful
     if (!response.ok) {
-        if (response.status === 429) {
-            return "Too many requests—slow down and try again!";
-        }
-        throw new Error(`Mistral API error: ${response.status}`);
+      const errorData = await response.json();
+      console.error("OpenRouter API error:", errorData);
+      if (response.status === 402) {
+        return res.status(402).json({ error: "Out of OpenRouter credits—please top up!" });
+      }
+      return res.status(response.status).json({ error: errorData.error || "Failed to fetch response from OpenRouter." });
     }
 
     const data = await response.json();
-    let reply = data.choices[0].message.content || 'Something went wrong!';
-    reply = reply.replace(/\n/g, ' ').trim();
-    console.log('Mistral Reply:', reply);
-    return reply;
-}
+
+    // Extract the assistant's response from OpenRouter's response
+    const assistantResponse = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+
+    if (!assistantResponse) {
+      console.error("Unexpected OpenRouter response format:", data);
+      return res.status(500).json({ error: "Invalid response format from OpenRouter." });
+    }
+
+    // Return the response in the format your Roblox script expects
+    res.status(200).json({ response: assistantResponse });
+  } catch (error) {
+    console.error("Error in Vercel API:", error);
+    if (error.message.includes("fetch")) {
+      return res.status(503).json({ error: "Assistant is slow—try again!" });
+    }
+    return res.status(500).json({ error: "Internal server error." });
+  }
+};
