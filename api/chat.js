@@ -15,7 +15,7 @@ export default async (req, res) => {
     // Prepare payload for OpenRouter
     const payload = {
       model: "qwen/qwen-2.5-7b-instruct",
-      provider: { provider: "deepinfra" }, // Try 'provider' as the key
+      provider: { provider: "deepinfra" }, // Attempt to force DeepInfra
       messages: [
         { role: "user", content: message }
       ],
@@ -26,7 +26,7 @@ export default async (req, res) => {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}",
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
