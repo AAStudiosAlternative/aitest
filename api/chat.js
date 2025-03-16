@@ -1,8 +1,10 @@
 export default async (req, res) => {
+  // Check for correct HTTP method
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
+  // Validate request body
   const { message } = req.body;
 
   if (!message || typeof message !== 'string') {
@@ -10,15 +12,16 @@ export default async (req, res) => {
   }
 
   try {
+    // Prepare payload for OpenRouter
     const payload = {
       model: "qwen/qwen-2.5-7b-instruct",
-      provider: "deepinfra", // Force DeepInfra as the provider
       messages: [
         { role: "user", content: message }
       ],
       max_tokens: 50 // Limit the response to 50 tokens
     };
 
+    // Make request to OpenRouter
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -28,29 +31,34 @@ export default async (req, res) => {
       body: JSON.stringify(payload)
     });
 
+    // Handle HTTP errors
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("OpenRouter API error:", errorData);
+      console.error("OpenRouter API error:", JSON.stringify(errorData, null, 2));
       if (response.status === 402) {
         return res.status(402).json({ error: "Out of OpenRouter credits—please top up!" });
       }
       return res.status(response.status).json({ error: errorData.error || "Failed to fetch response from OpenRouter." });
     }
 
+    // Parse the response
     const data = await response.json();
-    const assistantResponse = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    const assistantResponse = data.choices?.[0]?.message?.content;
 
+    // Validate the response format
     if (!assistantResponse) {
-      console.error("Unexpected OpenRouter response format:", data);
+      console.error("Unexpected OpenRouter response format:", JSON.stringify(data, null, 2));
       return res.status(500).json({ error: "Invalid response format from OpenRouter." });
     }
 
+    // Return the NPC response
     res.status(200).json({ response: assistantResponse });
   } catch (error) {
-    console.error("Error in Vercel API:", error);
+    // Handle runtime errors
+    console.error("Error in Vercel API:", error.message);
     if (error.message.includes("fetch")) {
       return res.status(503).json({ error: "Assistant is slow—try again!" });
     }
-    return res.status(500).json({ error: "Internal server error." });
+    return res.status(500).json({ error: "Internal server error: " + error.message });
   }
 };
