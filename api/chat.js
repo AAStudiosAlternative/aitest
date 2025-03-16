@@ -20,6 +20,7 @@ module.exports = async (req, res) => {
   try {
     const payload = {
       model: "qwen/qwen-2.5-7b-instruct",
+      provider: "deepinfra", // Force DeepInfra as the provider
       messages: [
         { role: "user", content: message }
       ],
