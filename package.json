@@ -13,5 +13,5 @@
   "engines": {
     "node": "18.x"
   },
-  "type": "module" // Add this line to enable ES6 modules
+  "type": "module"
 }
