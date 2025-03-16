@@ -14,8 +14,7 @@ export default async (req, res) => {
   try {
     // Prepare payload for OpenRouter
     const payload = {
-      model: "qwen/qwen-2.5-7b-instruct",
-      provider: { provider: "deepinfra" }, // Attempt to force DeepInfra
+      model: "qwen/qwen-2.5-7b-instruct:floor", // Use :floor to prioritize lowest price
       messages: [
         { role: "user", content: message }
       ],
