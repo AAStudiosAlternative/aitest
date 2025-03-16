@@ -12,10 +12,11 @@ export default async (req, res) => {
   }
 
   try {
-    // Prepare payload for OpenRouter
+    // Prepare payload for OpenRouter with concise instruction
     const payload = {
-      model: "qwen/qwen-2.5-7b-instruct:floor", // Use :floor to prioritize lowest price
+      model: "qwen/qwen-2.5-7b-instruct:floor", // Prioritize lowest price (likely DeepInfra)
       messages: [
+        { role: "system", content: "Respond concisely, limiting answers to 1-2 short sentences." }, // Instruction for brevity
         { role: "user", content: message }
       ],
       max_tokens: 50 // Limit the response to 50 tokens
