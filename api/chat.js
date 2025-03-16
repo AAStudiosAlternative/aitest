@@ -1,12 +1,4 @@
-const fetch = require('node-fetch'); // Ensure node-fetch is installed (npm install node-fetch@2)
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
-if (!OPENROUTER_API_KEY) {
-  throw new Error("OPENROUTER_API_KEY environment variable is not set.");
-}
-
-module.exports = async (req, res) => {
+export default async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
@@ -30,7 +22,7 @@ module.exports = async (req, res) => {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify(payload)
