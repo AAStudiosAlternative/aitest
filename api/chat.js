@@ -15,6 +15,7 @@ export default async (req, res) => {
     // Prepare payload for OpenRouter
     const payload = {
       model: "qwen/qwen-2.5-7b-instruct",
+      provider: { id: "deepinfra" }, // Attempt to force DeepInfra
       messages: [
         { role: "user", content: message }
       ],
