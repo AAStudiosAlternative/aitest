@@ -5,18 +5,22 @@ export default async (req, res) => {
   }
 
   // Validate request body
-  const { message } = req.body;
+  const { message, identityInstruction } = req.body;
 
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'Invalid or missing "message" in request body.' });
   }
 
+  if (!identityInstruction || typeof identityInstruction !== 'string') {
+    return res.status(400).json({ error: 'Invalid or missing "identityInstruction" in request body.' });
+  }
+
   try {
-    // Prepare payload for OpenRouter with concise instruction
+    // Prepare payload for OpenRouter
     const payload = {
       model: "qwen/qwen-2.5-7b-instruct:floor", // Prioritize lowest price (likely DeepInfra)
       messages: [
-        { role: "system", content: "Respond concisely, limiting answers to 1-2 short sentences." }, // Instruction for brevity
+        { role: "system", content: identityInstruction }, // Use identityInstruction as the system prompt
         { role: "user", content: message }
       ],
       max_tokens: 50 // Limit the response to 50 tokens
@@ -32,7 +36,6 @@ export default async (req, res) => {
       body: JSON.stringify(payload)
     });
 
-    // Handle HTTP errors
     if (!response.ok) {
       const errorData = await response.json();
       console.error("OpenRouter API error:", JSON.stringify(errorData, null, 2));
