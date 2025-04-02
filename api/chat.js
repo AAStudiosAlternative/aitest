@@ -1,5 +1,6 @@
-const express = require('express');
-const axios = require('axios');
+import express from 'express';
+import axios from 'axios';
+
 const router = express.Router();
 
 router.post('/', async (req, res) => {
@@ -23,8 +24,8 @@ router.post('/', async (req, res) => {
                 headers: {
                     "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "https://aitest-dun.vercel.app", // Replace with your app's URL
-                    "X-Title": "Elf AI Chat" // A descriptive title for your app
+                    "HTTP-Referer": "https://aitest-dun.vercel.app",
+                    "X-Title": "Elf AI Chat"
                 }
             }
         );
@@ -43,4 +44,4 @@ router.post('/', async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;
