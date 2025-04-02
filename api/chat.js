@@ -18,7 +18,7 @@ export default async (req, res) => {
   try {
     // Prepare payload for OpenRouter
     const payload = {
-      model: "qwen/qwen-2.5-7b-instruct:floor", // Prioritize lowest price (likely DeepInfra)
+      model: "deepseek/deepseek-r1-distill-llama-8b:floor", // Prioritize lowest price (likely DeepInfra)
       messages: [
         { role: "system", content: identityInstruction }, // Use identityInstruction as the system prompt
         { role: "user", content: message }
