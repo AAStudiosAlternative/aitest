@@ -24,7 +24,7 @@ export default async function handler(req, res) {
                     "X-Title": "Elf AI Chat"
                 },
                 body: JSON.stringify({
-                    model: "mistralai/mistral-nemo:floor",
+                    model: "qwen/qwen-2.5-7b-instruct:floor",
                     messages: [
                         { role: "system", content: identityInstruction },
                         { role: "user", content: message }
