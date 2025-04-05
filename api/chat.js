@@ -4,10 +4,10 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { message, identityInstruction } = req.body;
+        const { messages, identityInstruction } = req.body;
 
-        if (!message || !identityInstruction) {
-            return res.status(400).json({ error: 'Message and identity instruction are required' });
+        if (!messages || !identityInstruction) {
+            return res.status(400).json({ error: 'Messages and identity instruction are required' });
         }
 
         // Set up a timeout for the fetch request (8 seconds)
@@ -24,13 +24,13 @@ export default async function handler(req, res) {
                     "X-Title": "Elf AI Chat"
                 },
                 body: JSON.stringify({
-                    model: "qwen/qwen-2.5-7b-instruct:floor",
+                    model: "qwen/qwen-2.5-7b-instruct", // Updated to qwen/qwen-2.5-7b-instruct
                     messages: [
                         { role: "system", content: identityInstruction },
-                        { role: "user", content: message }
+                        ...messages // Include the conversation history
                     ],
-                    max_tokens: 50, // Reduced to make the response faster
-                    temperature: 0.7 // Lowered for more predictable (and potentially faster) output
+                    max_tokens: 50, // Kept low to prevent timeouts
+                    temperature: 0.7 // Kept low for faster responses
                 }),
                 signal: controller.signal // Attach the AbortController signal
             });
