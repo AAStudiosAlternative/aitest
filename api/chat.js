@@ -16,7 +16,7 @@ export default async function handler(req, res) {
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         try {
-            console.log("Starting OpenRouter API call (meta-llama/llama-3.1-8b-instruct, prioritizing Groq) at:", new Date().toISOString());
+            console.log("Starting OpenRouter API call (meta-llama/llama-3-8b-instruct:nitro) at:", new Date().toISOString());
             const startTimeApi = Date.now();
 
             const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -28,10 +28,7 @@ export default async function handler(req, res) {
                     "X-Title": "Elf AI Chat"
                 },
                 body: JSON.stringify({
-                    model: "meta-llama/llama-3.1-8b-instruct", // Use the specified model
-                    provider: {
-                        order: ["groq"] // Prioritize Groq as the provider
-                    },
+                    model: "meta-llama/llama-3-8b-instruct:nitro", // Switch to Llama 3 8B Instruct with :nitro for fastest provider
                     messages: [
                         { role: "system", content: identityInstruction },
                         ...messages // Include the conversation history
@@ -43,7 +40,7 @@ export default async function handler(req, res) {
             });
 
             const endTimeApi = Date.now();
-            console.log("OpenRouter API call (meta-llama/llama-3.1-8b-instruct, prioritizing Groq) completed at:", new Date().toISOString());
+            console.log("OpenRouter API call (meta-llama/llama-3-8b-instruct:nitro) completed at:", new Date().toISOString());
             console.log("OpenRouter API call took:", (endTimeApi - startTimeApi) / 1000, "seconds");
 
             clearTimeout(timeoutId); // Clear the timeout if the request completes in time
