@@ -1,13 +1,26 @@
-export default async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
+// api/chat.js
+
+// Tell Vercel to use the Edge Runtime
+export const runtime = "edge";
+// Set a preferred region (Washington, D.C., USA) to minimize latency to Roblox servers
+export const preferredRegion = "iad1";
+
+export default async function handler(req) {
+    if (req.method !== "POST") {
+        return new Response(
+            JSON.stringify({ error: "Method not allowed" }),
+            { status: 405, headers: { "Content-Type": "application/json" } }
+        );
     }
 
     try {
-        const { messages, identityInstruction } = req.body;
+        const { messages, identityInstruction } = await req.json();
 
         if (!messages || !identityInstruction) {
-            return res.status(400).json({ error: 'Messages and identity instruction are required' });
+            return new Response(
+                JSON.stringify({ error: "Messages and identity instruction are required" }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+            );
         }
 
         // Set up a timeout for the fetch request (8 seconds)
@@ -16,7 +29,7 @@ export default async function handler(req, res) {
 
         try {
             const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: 'POST',
+                method: "POST",
                 headers: {
                     "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
                     "Content-Type": "application/json",
@@ -24,7 +37,7 @@ export default async function handler(req, res) {
                     "X-Title": "Elf AI Chat"
                 },
                 body: JSON.stringify({
-                    model: "qwen/qwen-2.5-7b-instruct", // Updated to qwen/qwen-2.5-7b-instruct
+                    model: "qwen/qwen-2.5-7b-instruct",
                     messages: [
                         { role: "system", content: identityInstruction },
                         ...messages // Include the conversation history
@@ -39,24 +52,33 @@ export default async function handler(req, res) {
 
             if (!openRouterResponse.ok) {
                 const errorData = await openRouterResponse.json();
-                throw new Error(errorData.error?.message || 'OpenRouter API request failed');
+                throw new Error(errorData.error?.message || "OpenRouter API request failed");
             }
 
             const data = await openRouterResponse.json();
             const reply = data.choices[0].message.content;
-            res.status(200).json({ response: reply });
+            return new Response(
+                JSON.stringify({ response: reply }),
+                { status: 200, headers: { "Content-Type": "application/json" } }
+            );
         } catch (error) {
-            if (error.name === 'AbortError') {
-                throw new Error('Request timed out');
+            if (error.name === "AbortError") {
+                throw new Error("Request timed out");
             }
             throw error; // Re-throw other errors
         }
     } catch (error) {
-        console.error('Error:', error.message);
-        if (error.message === 'Request timed out') {
-            res.status(504).json({ error: 'Elf AI is slow—try again!' });
+        console.error("Error:", error.message);
+        if (error.message === "Request timed out") {
+            return new Response(
+                JSON.stringify({ error: "Elf AI is slow—try again!" }),
+                { status: 504, headers: { "Content-Type": "application/json" } }
+            );
         } else {
-            res.status(500).json({ error: error.message || 'Internal server error' });
+            return new Response(
+                JSON.stringify({ error: error.message || "Internal server error" }),
+                { status: 500, headers: { "Content-Type": "application/json" } }
+            );
         }
     }
 }
