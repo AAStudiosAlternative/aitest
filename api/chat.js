@@ -6,6 +6,9 @@ export const runtime = "edge";
 export const preferredRegion = "iad1";
 
 export default async function handler(req) {
+    const startTimeTotal = Date.now();
+    console.log("Function execution started at:", new Date().toISOString());
+
     if (req.method !== "POST") {
         return new Response(
             JSON.stringify({ error: "Method not allowed" }),
@@ -17,12 +20,30 @@ export default async function handler(req) {
         // Parse the request body safely
         let body;
         try {
+            // First, try req.json() if available
             if (typeof req.json === "function") {
+                console.log("Attempting to use req.json()");
                 body = await req.json();
             } else {
-                // Fallback: Read the body as text and parse it manually
-                const text = await req.text();
-                body = JSON.parse(text);
+                console.log("req.json() not available, trying req.body stream");
+                // If req.json() isn't available, read the body as a stream
+                if (!req.body) {
+                    throw new Error("Request body is missing");
+                }
+
+                // Read the stream into a string
+                const reader = req.body.getReader();
+                const decoder = new TextDecoder();
+                let bodyText = "";
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    bodyText += decoder.decode(value, { stream: true });
+                }
+
+                // Parse the body text as JSON
+                body = JSON.parse(bodyText);
             }
         } catch (error) {
             console.error("Error parsing request body:", error.message);
@@ -41,13 +62,13 @@ export default async function handler(req) {
             );
         }
 
-        // Set up a timeout for the fetch request (5 seconds)
+        // Set up a timeout for the fetch request (4 seconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         try {
             console.log("Starting OpenRouter API call at:", new Date().toISOString());
-            const startTime = Date.now();
+            const startTimeApi = Date.now();
 
             const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
@@ -69,9 +90,9 @@ export default async function handler(req) {
                 signal: controller.signal // Attach the AbortController signal
             });
 
-            const endTime = Date.now();
+            const endTimeApi = Date.now();
             console.log("OpenRouter API call completed at:", new Date().toISOString());
-            console.log("OpenRouter API call took:", (endTime - startTime) / 1000, "seconds");
+            console.log("OpenRouter API call took:", (endTimeApi - startTimeApi) / 1000, "seconds");
 
             clearTimeout(timeoutId); // Clear the timeout if the request completes in time
 
@@ -82,6 +103,11 @@ export default async function handler(req) {
 
             const data = await openRouterResponse.json();
             const reply = data.choices[0].message.content;
+
+            const endTimeTotal = Date.now();
+            console.log("Function execution completed at:", new Date().toISOString());
+            console.log("Total execution time:", (endTimeTotal - startTimeTotal) / 1000, "seconds");
+
             return new Response(
                 JSON.stringify({ response: reply }),
                 { status: 200, headers: { "Content-Type": "application/json" } }
