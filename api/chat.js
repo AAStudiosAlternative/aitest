@@ -14,7 +14,25 @@ export default async function handler(req) {
     }
 
     try {
-        const { messages, identityInstruction } = await req.json();
+        // Parse the request body safely
+        let body;
+        try {
+            if (typeof req.json === "function") {
+                body = await req.json();
+            } else {
+                // Fallback: Read the body as text and parse it manually
+                const text = await req.text();
+                body = JSON.parse(text);
+            }
+        } catch (error) {
+            console.error("Error parsing request body:", error.message);
+            return new Response(
+                JSON.stringify({ error: "Invalid request body" }),
+                { status: 400, headers: { "Content-Type": "application/json" } }
+            );
+        }
+
+        const { messages, identityInstruction } = body;
 
         if (!messages || !identityInstruction) {
             return new Response(
