@@ -41,11 +41,14 @@ export default async function handler(req) {
             );
         }
 
-        // Set up a timeout for the fetch request (8 seconds)
+        // Set up a timeout for the fetch request (5 seconds)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         try {
+            console.log("Starting OpenRouter API call at:", new Date().toISOString());
+            const startTime = Date.now();
+
             const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {
@@ -65,6 +68,10 @@ export default async function handler(req) {
                 }),
                 signal: controller.signal // Attach the AbortController signal
             });
+
+            const endTime = Date.now();
+            console.log("OpenRouter API call completed at:", new Date().toISOString());
+            console.log("OpenRouter API call took:", (endTime - startTime) / 1000, "seconds");
 
             clearTimeout(timeoutId); // Clear the timeout if the request completes in time
 
