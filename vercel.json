@@ -2,7 +2,7 @@
   "redirects": [
     {
       "source": "/",
-      "destination": "https://www.roblox.com/games/75643701984084/Elf-AI", // Replace with your desired URL
+      "destination": "https://www.roblox.com/games/75643701984084/Elf-AI",
       "permanent": true
     }
   ]
