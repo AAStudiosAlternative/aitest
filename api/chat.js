@@ -11,57 +11,83 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Messages and identity instruction are required' });
         }
 
+        // Extract the latest user message (prompt) and username (if provided)
+        const userMessage = messages[messages.length - 1].content;
+        const robloxUsername = req.body.robloxUsername || "Unknown"; // Expect username from Roblox script
+
         // Set up a timeout for the fetch request (4 seconds)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        try {
-            console.log("Starting OpenRouter API call (meta-llama/llama-3-8b-instruct:nitro) at:", new Date().toISOString());
-            const startTimeApi = Date.now();
+        console.log("Starting OpenRouter API call (meta-llama/llama-3-8b-instruct:nitro) at:", new Date().toISOString());
+        const startTimeApi = Date.now();
 
-            const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                method: 'POST',
-                headers: {
-                    "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://aitest-dun.vercel.app",
-                    "X-Title": "Elf AI Chat"
-                },
-                body: JSON.stringify({
-                    model: "meta-llama/llama-3-8b-instruct:nitro", // Switch to Llama 3 8B Instruct with :nitro for fastest provider
-                    messages: [
-                        { role: "system", content: identityInstruction },
-                        ...messages // Include the conversation history
-                    ],
-                    max_tokens: 100, // Kept low to prevent timeouts
-                    temperature: 0.7 // Kept low for faster responses
-                }),
-                signal: controller.signal // Attach the AbortController signal
-            });
+        const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: 'POST',
+            headers: {
+                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://aitest-dun.vercel.app",
+                "X-Title": "Elf AI Chat"
+            },
+            body: JSON.stringify({
+                model: "meta-llama/llama-3-8b-instruct:nitro",
+                messages: [
+                    { role: "system", content: identityInstruction },
+                    ...messages
+                ],
+                max_tokens: 100,
+                temperature: 0.7
+            }),
+            signal: controller.signal
+        });
 
-            const endTimeApi = Date.now();
-            console.log("OpenRouter API call (meta-llama/llama-3-8b-instruct:nitro) completed at:", new Date().toISOString());
-            console.log("OpenRouter API call took:", (endTimeApi - startTimeApi) / 1000, "seconds");
+        const endTimeApi = Date.now();
+        console.log("OpenRouter API call took:", (endTimeApi - startTimeApi) / 1000, "seconds");
+        clearTimeout(timeoutId);
 
-            clearTimeout(timeoutId); // Clear the timeout if the request completes in time
-
-            if (!openRouterResponse.ok) {
-                const errorData = await openRouterResponse.json();
-                throw new Error(errorData.error?.message || 'OpenRouter API request failed');
-            }
-
-            const data = await openRouterResponse.json();
-            const reply = data.choices[0].message.content;
-            res.status(200).json({ response: reply });
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                throw new Error('Request timed out');
-            }
-            throw error; // Re-throw other errors
+        if (!openRouterResponse.ok) {
+            const errorData = await openRouterResponse.json();
+            throw new Error(errorData.error?.message || 'OpenRouter API request failed');
         }
+
+        const data = await openRouterResponse.json();
+        const reply = data.choices[0].message.content;
+
+        // Send to Discord webhook
+        const webhookUrl = process.env.DISCORD_WEBHOOK_URL; // Add your webhook URL to .env
+        if (webhookUrl) {
+            try {
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        embeds: [{
+                            title: "Elf AI Chat Log",
+                            color: 0x00FF00, // Green color
+                            fields: [
+                                { name: "Roblox Username", value: robloxUsername, inline: true },
+                                { name: "Prompt", value: userMessage || "N/A", inline: false },
+                                { name: "Output", value: reply || "N/A", inline: false }
+                            ],
+                            timestamp: new Date().toISOString()
+                        }]
+                    })
+                });
+                console.log("Webhook sent successfully");
+            } catch (webhookError) {
+                console.error("Failed to send webhook:", webhookError.message);
+            }
+        } else {
+            console.warn("DISCORD_WEBHOOK_URL not set in environment variables");
+        }
+
+        res.status(200).json({ response: reply });
     } catch (error) {
         console.error('Error:', error.message);
-        if (error.message === 'Request timed out') {
+        if (error.name === 'AbortError') {
             res.status(504).json({ error: 'Elf AI is slow—try again!' });
         } else {
             res.status(500).json({ error: error.message || 'Internal server error' });
