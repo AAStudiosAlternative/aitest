@@ -28,7 +28,7 @@ export default async function handler(req, res) {
                     "X-Title": "Elf AI Chat"
                 },
                 body: JSON.stringify({
-                    model: "groq/meta-llama/llama-3-8b-instruct", // Switch to Llama 3 8B Instruct with :nitro for fastest provider
+                    model: "meta-llama/llama-3-8b-instruct:fastest", // Switch to Llama 3 8B Instruct with :nitro for fastest provider
                     messages: [
                         { role: "system", content: identityInstruction },
                         ...messages // Include the conversation history
