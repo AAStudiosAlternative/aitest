@@ -19,7 +19,7 @@ export default async function handler(req, res) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        console.log("Starting OpenRouter API call (meta-llama/llama-3-8b-instruct:nitro) at:", new Date().toISOString());
+        console.log("Starting OpenRouter API call (meta-llama/llama-4-scout:nitro) at:", new Date().toISOString());
         const startTimeApi = Date.now();
 
         const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
