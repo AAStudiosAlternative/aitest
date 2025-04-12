@@ -1,133 +1,149 @@
-// api/chat.js
-export default async function handler(req, res) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, ActivityType } = require('discord.js');
+const axios = require('axios');
+const express = require('express');
+const DiscordOauth2 = require('discord-oauth2');
 
-    // Utility function to trim spaces, newlines, and other whitespace
-    const trim = (str) => {
-        if (!str) return "";
-        return str
-            .trim() // Remove leading/trailing whitespace
-            .replace(/\s+/g, " "); // Reduce multiple spaces to a single space
-    };
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
+});
+const app = express();
 
-    // Utility function to clean up the response
-    const cleanResponse = (response, identityInstruction) => {
-        let cleaned = response;
+// Specific server and channel IDs
+const TARGET_SERVER_ID = '513493604048699393';
+const TARGET_CHANNEL_ID = '1351714977173733376';
 
-        // Remove the system prompt if it appears in the response
-        if (identityInstruction && cleaned.includes(identityInstruction)) {
-            cleaned = cleaned.replace(identityInstruction, "");
-        }
+const oauth = new DiscordOauth2({
+  clientId: '1351323706160582676',
+  clientSecret: process.env.CLIENT_SECRET,
+  redirectUri: `https://nettle-vast-constellation-bot.onrender.com/callback`
+});
 
-        // Remove unnecessary "Elf AI" mentions (case-insensitive)
-        // Allow "Elf AI" at the start of the response (e.g., "Elf AI says...") but remove it elsewhere
-        const elfAiRegex = /(,?\s*elf ai\s*,)|(elf ai\s+)/gi;
-        cleaned = cleaned.replace(elfAiRegex, (match, p1, p2, offset) => {
-            // Keep "Elf AI" if it's at the start of the response
-            if (offset === 0 && cleaned.toLowerCase().startsWith("elf ai")) {
-                return match; // Don't replace if it's at the start
-            }
-            // Replace with a space if it's in the middle or end
-            return " ";
-        });
+const commands = [
+  new SlashCommandBuilder()
+    .setName('chat')
+    .setDescription('Chat to Elf AI')
+    .addStringOption(option =>
+      option.setName('message')
+        .setDescription('Your message to Elf AI')
+        .setRequired(true)
+    )
+].map(command => command.toJSON());
 
-        // Trim again after cleaning
-        return trim(cleaned);
-    };
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
+// Identity instruction for the API
+const IDENTITY_INSTRUCTION = 'You are Elf AI, a helpful assistant. Respond in 1-2 short sentences without repeating your name unless necessary.';
+
+client.once('ready', async () => {
+  console.log(`Logged in as ${client.user.tag}`);
+  client.user.setPresence({
+    status: 'online',
+    activities: [{ name: 'Chatting with users', type: ActivityType.Playing }]
+  });
+  try {
+    await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
+    console.log('Successfully registered slash commands globally');
+  } catch (error) {
+    console.error('Error registering commands:', error);
+  }
+});
+
+client.on('debug', (info) => {
+  console.log(`[DEBUG] ${info}`);
+});
+
+client.on('error', (error) => {
+  console.error('WebSocket Error:', error);
+});
+
+client.on('disconnect', (event) => {
+  console.log('Disconnected from Discord:', event);
+  setTimeout(() => client.login(process.env.TOKEN).catch(console.error), 5000);
+});
+
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === 'chat') {
+    const userInput = interaction.options.getString('message');
     try {
-        const { messages, identityInstruction } = req.body;
-
-        if (!messages || !identityInstruction) {
-            return res.status(400).json({ error: 'Messages and identity instruction are required' });
-        }
-
-        // Extract the latest user message (prompt) and username (if provided)
-        const userMessage = messages[messages.length - 1].content;
-        const robloxUsername = req.body.robloxUsername || "Unknown"; // Expect username from Roblox script
-
-        // Set up a timeout for the fetch request (4 seconds)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-        console.log("Starting OpenRouter API call (google/gemma-2-9b-it:nitro) at:", new Date().toISOString());
-        const startTimeApi = Date.now();
-
-        const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: 'POST',
-            headers: {
-                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://aitest-dun.vercel.app",
-                "X-Title": "Elf AI Chat"
-            },
-            body: JSON.stringify({
-                model: "google/gemma-2-9b-it:nitro",
-                messages: [
-                    { role: "system", content: identityInstruction },
-                    ...messages
-                ],
-                max_tokens: 100,
-                temperature: 0.7
-            }),
-            signal: controller.signal
-        });
-
-        const endTimeApi = Date.now();
-        console.log("OpenRouter API call took:", (endTimeApi - startTimeApi) / 1000, "seconds");
-        clearTimeout(timeoutId);
-
-        if (!openRouterResponse.ok) {
-            const errorData = await openRouterResponse.json();
-            throw new Error(errorData.error?.message || 'OpenRouter API request failed');
-        }
-
-        const data = await openRouterResponse.json();
-        let reply = data.choices[0].message.content;
-
-        // Clean the reply to remove the system prompt and unnecessary "Elf AI" mentions
-        reply = cleanResponse(reply, identityInstruction);
-        console.log("Cleaned API response:", reply);
-
-        // Send to Discord webhook
-        const webhookUrl = process.env.DISCORD_WEBHOOK_URL; // Add your webhook URL to .env
-        if (webhookUrl) {
-            try {
-                await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        embeds: [{
-                            title: "Elf AI Chat Log",
-                            color: 0x00FF00, // Green color
-                            fields: [
-                                { name: "Roblox Username", value: robloxUsername, inline: true },
-                                { name: "Prompt", value: userMessage || "N/A", inline: false },
-                                { name: "Output", value: reply || "N/A", inline: false }
-                            ],
-                            timestamp: new Date().toISOString()
-                        }]
-                    })
-                });
-                console.log("Webhook sent successfully");
-            } catch (webhookError) {
-                console.error("Failed to send webhook:", webhookError.message);
-            }
-        } else {
-            console.warn("DISCORD_WEBHOOK_URL not set in environment variables");
-        }
-
-        res.status(200).json({ response: reply });
+      await interaction.deferReply();
+      const response = await axios.post('https://aitest-dun.vercel.app/api/chat', {
+        messages: [{ role: 'user', content: userInput }],
+        identityInstruction: IDENTITY_INSTRUCTION,
+        robloxUsername: interaction.user.username // Optional: include Discord username
+      });
+      const data = response.data;
+      await interaction.editReply(data.response || 'No response from API');
     } catch (error) {
-        console.error('Error:', error.message);
-        if (error.name === 'AbortError') {
-            res.status(504).json({ error: 'Elf AI is slow—try again!' });
-        } else {
-            res.status(500).json({ error: error.message || 'Internal server error' });
-        }
+      console.error('Slash command error:', error.response?.data || error.message);
+      await interaction.editReply(`Error: ${error.response?.data?.error || 'Something went wrong'}`);
     }
-}
+  }
+});
+
+client.on('messageCreate', async message => {
+  if (message.channel.id === TARGET_CHANNEL_ID && message.guild?.id === TARGET_SERVER_ID) {
+    if (!message.author.bot) {
+      const userInput = message.content;
+      try {
+        const response = await axios.post('https://aitest-dun.vercel.app/api/chat', {
+          messages: [{ role: 'user', content: userInput }],
+          identityInstruction: IDENTITY_INSTRUCTION,
+          robloxUsername: message.author.username // Optional: include Discord username
+        });
+        const data = response.data;
+        await message.reply(data.response || 'No response from API');
+      } catch (error) {
+        console.error('Message handler error:', error.response?.data || error.message);
+        await message.reply(`Error: ${error.response?.data?.error || 'Something went wrong'}`);
+      }
+    }
+  }
+});
+
+app.get('/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) return res.send('Error: No code provided');
+  try {
+    const tokenData = await oauth.tokenRequest({
+      code,
+      scope: 'identify applications.commands',
+      grantType: 'authorization_code'
+    });
+    const user = await oauth.getUser(tokenData.access_token);
+    res.send(`Successfully authorized! Welcome, ${user.username}! Use /chat in Discord or send messages in channel ${TARGET_CHANNEL_ID}.`);
+  } catch (error) {
+    res.send(`Error during authorization: ${error.message}`);
+  }
+});
+
+app.get('/', (req, res) => {
+  res.send('Bot is alive!');
+});
+
+app.get('/health', (req, res) => {
+  res.send('Healthy');
+});
+
+// Global error handler to prevent crashes
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+app.listen(process.env.PORT || 10000, () => {
+  console.log(`Web server running on port ${process.env.PORT || 10000}`);
+});
+
+client.login(process.env.TOKEN).catch(error => {
+  console.error('Initial login failed:', error);
+  setTimeout(() => client.login(process.env.TOKEN).catch(console.error), 5000);
+});
