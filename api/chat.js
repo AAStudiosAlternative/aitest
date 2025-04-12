@@ -4,6 +4,14 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    // Utility function to trim spaces, newlines, and other whitespace
+    const trim = (str) => {
+        if (!str) return "";
+        return str
+            .trim() // Remove leading/trailing whitespace
+            .replace(/\s+/g, " "); // Reduce multiple spaces to a single space
+    };
+
     try {
         const { messages, identityInstruction } = req.body;
 
@@ -19,7 +27,7 @@ export default async function handler(req, res) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-        console.log("Starting OpenRouter API call (meta-llama/llama-4-scout:nitro) at:", new Date().toISOString());
+        console.log("Starting OpenRouter API call (google/gemma-2-9b-it:nitro) at:", new Date().toISOString());
         const startTimeApi = Date.now();
 
         const openRouterResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -52,7 +60,11 @@ export default async function handler(req, res) {
         }
 
         const data = await openRouterResponse.json();
-        const reply = data.choices[0].message.content;
+        let reply = data.choices[0].message.content;
+
+        // Trim the reply to remove extra spaces and newlines
+        reply = trim(reply);
+        console.log("Trimmed API response:", reply);
 
         // Send to Discord webhook
         const webhookUrl = process.env.DISCORD_WEBHOOK_URL; // Add your webhook URL to .env
