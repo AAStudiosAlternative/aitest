@@ -75,32 +75,40 @@ client.on('interactionCreate', async interaction => {
       const response = await axios.post('https://aitest-dun.vercel.app/api/chat', {
         messages: [{ role: 'user', content: userInput }],
         identityInstruction: IDENTITY_INSTRUCTION,
-        robloxUsername: interaction.user.username // Optional: include Discord username
+        robloxUsername: interaction.user.username
       });
       const data = response.data;
       await interaction.editReply(data.response || 'No response from API');
     } catch (error) {
-      console.error('Slash command error:', error.response?.data || error.message);
-      await interaction.editReply(`Error: ${error.response?.data?.error || 'Something went wrong'}`);
+      console.error('Slash command error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      await interaction.editReply(`Error: The API is down, please try again later.`);
     }
   }
 });
 
 client.on('messageCreate', async message => {
   if (message.channel.id === TARGET_CHANNEL_ID && message.guild?.id === TARGET_SERVER_ID) {
-    if (!message.author.bot) {
+    if (!message.author.bot && !message.interaction) {
       const userInput = message.content;
       try {
         const response = await axios.post('https://aitest-dun.vercel.app/api/chat', {
           messages: [{ role: 'user', content: userInput }],
           identityInstruction: IDENTITY_INSTRUCTION,
-          robloxUsername: message.author.username // Optional: include Discord username
+          robloxUsername: message.author.username
         });
         const data = response.data;
         await message.reply(data.response || 'No response from API');
       } catch (error) {
-        console.error('Message handler error:', error.response?.data || error.message);
-        await message.reply(`Error: ${error.response?.data?.error || 'Something went wrong'}`);
+        console.error('Message handler error:', {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        });
+        await message.reply(`Error: The API is down, please try again later.`);
       }
     }
   }
