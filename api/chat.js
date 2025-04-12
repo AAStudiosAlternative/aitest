@@ -12,6 +12,31 @@ export default async function handler(req, res) {
             .replace(/\s+/g, " "); // Reduce multiple spaces to a single space
     };
 
+    // Utility function to clean up the response
+    const cleanResponse = (response, identityInstruction) => {
+        let cleaned = response;
+
+        // Remove the system prompt if it appears in the response
+        if (identityInstruction && cleaned.includes(identityInstruction)) {
+            cleaned = cleaned.replace(identityInstruction, "");
+        }
+
+        // Remove unnecessary "Elf AI" mentions (case-insensitive)
+        // Allow "Elf AI" at the start of the response (e.g., "Elf AI says...") but remove it elsewhere
+        const elfAiRegex = /(,?\s*elf ai\s*,)|(elf ai\s+)/gi;
+        cleaned = cleaned.replace(elfAiRegex, (match, p1, p2, offset) => {
+            // Keep "Elf AI" if it's at the start of the response
+            if (offset === 0 && cleaned.toLowerCase().startsWith("elf ai")) {
+                return match; // Don't replace if it's at the start
+            }
+            // Replace with a space if it's in the middle or end
+            return " ";
+        });
+
+        // Trim again after cleaning
+        return trim(cleaned);
+    };
+
     try {
         const { messages, identityInstruction } = req.body;
 
@@ -62,9 +87,9 @@ export default async function handler(req, res) {
         const data = await openRouterResponse.json();
         let reply = data.choices[0].message.content;
 
-        // Trim the reply to remove extra spaces and newlines
-        reply = trim(reply);
-        console.log("Trimmed API response:", reply);
+        // Clean the reply to remove the system prompt and unnecessary "Elf AI" mentions
+        reply = cleanResponse(reply, identityInstruction);
+        console.log("Cleaned API response:", reply);
 
         // Send to Discord webhook
         const webhookUrl = process.env.DISCORD_WEBHOOK_URL; // Add your webhook URL to .env
