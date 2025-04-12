@@ -31,7 +31,7 @@ export default async function handler(req, res) {
                 "X-Title": "Elf AI Chat"
             },
             body: JSON.stringify({
-                model: "openai/gpt-4o-mini",
+                model: "google/gemma-2-9b-it:nitro",
                 messages: [
                     { role: "system", content: identityInstruction },
                     ...messages
